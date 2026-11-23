@@ -1,38 +1,35 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { existsSync, mkdirSync, copyFileSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
-// Define directories with fallbacks
-const BOT_DIR = process.env.MAKEFUN_BOT_DIR || '/bot';
-const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR || '/output';
+const botDir = process.env.MAKEFUN_BOT_DIR ?? "/bot";
+const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const videoPath = join(botDir, "VIDEO.json");
 
-function main() {
-    try {
-        const videoJsonPath = path.join(BOT_DIR, 'VIDEO.json');
-        
-        // Check if file exists and is not empty
-        if (!fs.existsSync(videoJsonPath)) {
-            console.error(`Error: VIDEO.json not found at ${videoJsonPath}`);
-            process.exit(1);
-        }
-        
-        if (fs.statSync(videoJsonPath).size === 0) {
-            console.error('Error: VIDEO.json is empty');
-            process.exit(1);
-        }
-        
-        // Ensure output directory exists
-        if (!fs.existsSync(OUTPUT_DIR)) {
-            fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-        }
-        
-        const outputPath = path.join(OUTPUT_DIR, 'VIDEO.json');
-        fs.copyFileSync(videoJsonPath, outputPath);
-        
-        console.log(`Successfully copied VIDEO.json to ${outputPath}`);
-    } catch (error) {
-        console.error('An unexpected error occurred:', error.message);
-        process.exit(1);
-    }
+if (!existsSync(videoPath)) {
+  process.stderr.write(`error: VIDEO.json not found at ${videoPath}\n`);
+  process.exit(1);
 }
 
-main();
+const videoContents = readFileSync(videoPath, "utf8");
+if (videoContents.trim() === "") {
+  process.stderr.write(`error: VIDEO.json at ${videoPath} is empty\n`);
+  process.exit(1);
+}
+
+try {
+  JSON.parse(videoContents);
+} catch (err) {
+  const reason = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`error: VIDEO.json at ${videoPath} is not valid JSON: ${reason}\n`);
+  process.exit(1);
+}
+
+if (!existsSync(outputDir)) {
+  mkdirSync(outputDir, { recursive: true });
+}
+
+const destination = join(outputDir, "VIDEO.json");
+copyFileSync(videoPath, destination);
+
+const copiedSize = statSync(destination).size;
+process.stdout.write(`Copied VIDEO.json to ${destination} (${copiedSize} bytes)\n`);
